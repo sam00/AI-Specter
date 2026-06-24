@@ -1,3 +1,8 @@
+---
+layout: default
+title: "Specter AI — AI-driven automated pentesting"
+---
+
 # 👻 Specter AI
 
 > AI-driven automated penetration testing, from your terminal.
