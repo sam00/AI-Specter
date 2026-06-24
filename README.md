@@ -90,14 +90,16 @@ tools, triages their output with AI, and writes you three reports.
 - **🛡️ Prompt‑injection defense** — untrusted tool output is sandboxed before it
   ever reaches a model.
 - **📊 End‑to‑end reporting** — **risk** (exec), **technical** (engineer), and
-  **remediation** reports out of the box.
+  **remediation** reports, exportable to **Markdown, PDF, and Word** (`--format`).
 - **👥 Team mode** — a shared SQLite store with finding workflow
   (`specter findings` / `specter triage`), an optional **API server**
   (`specter serve`), and an **MCP server** (`specter mcp`) for Claude/Cursor.
 - **🎯 C2 integrations** — adapters for **Sliver**, **Cobalt Strike**, **Mythic**,
   and a **generic REST adapter** for any C2.
-- **🔌 Bring your own model** — Claude, GPT, Ollama, or any OpenAI‑compatible
-  endpoint. Run **fully offline** with a built‑in echo model + simulated tools.
+- **🔌 Use ANY model** — Claude, GPT, Ollama, or **any OpenAI‑compatible
+  endpoint** (Groq, Together, OpenRouter, vLLM, LM Studio, LiteLLM…). Force one
+  with `--model provider:model`, or run **fully offline** with a built‑in echo
+  model + simulated tools.
 
 ## Install
 
@@ -106,7 +108,8 @@ git clone git@github.com:sam00/AI-Specter.git
 cd AI-Specter
 python -m venv .venv && source .venv/bin/activate
 pip install -e .            # core
-pip install -e '.[all]'     # + Claude, OpenAI, server, and MCP extras
+pip install -e '.[all]'     # everything: Claude, OpenAI, server, MCP, PDF + Word
+# or pick extras: '.[claude]'  '.[openai]'  '.[reports]' (PDF/Word)  '.[server]'  '.[mcp]'
 ```
 
 Set whichever key you have (or skip and run offline):
@@ -114,6 +117,7 @@ Set whichever key you have (or skip and run offline):
 ```bash
 export ANTHROPIC_API_KEY=...     # Claude
 export OPENAI_API_KEY=...        # GPT
+export SPECTER_LLM_BASE_URL=...  # ANY OpenAI-compatible endpoint (+ _API_KEY / _MODEL)
 # or run fully local with Ollama — no key needed
 ```
 
@@ -128,7 +132,9 @@ specter models                # list the model catalog (add --discover to probe)
 
 specter run --name acme-q3                 # pipeline engagement (authorized scope)
 specter run --agent --objectives "find RCE" # autonomous agent mode
-specter report --kind risk                 # (re)generate a report from the latest run
+specter run -t acme.example --format all    # reports in Markdown + PDF + Word
+specter run -t acme.example --model openai-compatible:llama-3.1-70b  # force any model
+specter report --kind risk --format pdf    # (re)generate a report (md|pdf|docx|all)
 
 specter findings                           # team view of all findings
 specter triage <id> --status confirmed --assignee you

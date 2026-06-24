@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **PDF & Word report export** — `--format md|pdf|docx|all` on `specter run` and
+  `specter report` (optional `ai-specter[pdf]` / `[docx]` / `[reports]` extras;
+  exports degrade gracefully if a backend is missing).
+- **Any-LLM support** — `--model provider:model` forces one model across the
+  whole engagement, and any OpenAI-compatible endpoint (Groq, Together,
+  OpenRouter, vLLM, LM Studio, LiteLLM, …) is auto-detected from
+  `SPECTER_LLM_BASE_URL` / `OPENAI_BASE_URL`.
+- **Zero-config setup** — providers auto-detected from the environment
+  (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_HOST`) and a project/`SPECTER_HOME`
+  `.env`; a friendly landing screen, a `setup` alias, and `run -t/--target` for
+  one-off scopes.
+
+### Changed
+
+- Friendlier `init` (auto-detected keys, validated profile, summary) and
+  `doctor` (credentials-in-environment view + actionable verdict).
+
 ## [0.1.0] - 2026-06-23
 
 Initial public release.

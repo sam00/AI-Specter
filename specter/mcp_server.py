@@ -1,6 +1,6 @@
 """Optional: expose Specter as an MCP server for Claude/Cursor/etc.
 
-Install with ``pip install 'specter-ai[mcp]'`` then run ``specter mcp``. The
+Install with ``pip install 'ai-specter[mcp]'`` then run ``specter mcp``. The
 ``mcp`` SDK is imported lazily so the core package has no hard dependency.
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ def build_server():
     try:
         from mcp.server.fastmcp import FastMCP
     except ImportError as e:  # pragma: no cover
-        raise RuntimeError("pip install 'specter-ai[mcp]' to use MCP mode") from e
+        raise RuntimeError("pip install 'ai-specter[mcp]' to use MCP mode") from e
 
     mcp = FastMCP("specter")
 

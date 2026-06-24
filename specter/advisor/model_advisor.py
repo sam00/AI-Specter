@@ -78,6 +78,18 @@ def catalog_from_config(models: list[dict] | None) -> list[ModelSpec]:
     return specs or list(MODEL_CATALOG)
 
 
+def overrides_from_spec(spec: str | None) -> dict[str, str]:
+    """Expand a single 'provider:model' into a per-task override for every task.
+
+    Used by `specter run --model ...` / config `model_override` to force one
+    model (e.g. any OpenAI-compatible endpoint) across the whole engagement.
+    Returns an empty mapping when no valid spec is given.
+    """
+    if not spec or ":" not in spec:
+        return {}
+    return {t.value: spec for t in TaskKind}
+
+
 def discover_models(config, timeout: float = 5.0) -> list[ModelSpec]:
     """Best-effort probe of provider endpoints to validate/augment the catalog.
 

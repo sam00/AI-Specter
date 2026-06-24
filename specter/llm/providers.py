@@ -15,7 +15,7 @@ class AnthropicClient(LLMClient):
         try:
             import anthropic
         except ImportError as e:  # pragma: no cover
-            raise RuntimeError("pip install 'specter-ai[claude]' for Claude support") from e
+            raise RuntimeError("pip install 'ai-specter[claude]' for Claude support") from e
 
         client = anthropic.Anthropic(api_key=self.api_key)
         system = "\n".join(m.content for m in messages if m.role == "system")
@@ -44,7 +44,7 @@ class OpenAIClient(LLMClient):
         try:
             from openai import OpenAI
         except ImportError as e:  # pragma: no cover
-            raise RuntimeError("pip install 'specter-ai[openai]' for GPT support") from e
+            raise RuntimeError("pip install 'ai-specter[openai]' for GPT support") from e
 
         client = OpenAI(api_key=self.api_key, base_url=self.base_url or None)
         resp = client.chat.completions.create(

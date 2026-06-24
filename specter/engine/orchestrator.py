@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 from specter import security
-from specter.advisor import ModelAdvisor, TaskKind, catalog_from_config
+from specter.advisor import ModelAdvisor, TaskKind, catalog_from_config, overrides_from_spec
 from specter.audit import AuditLogger
 from specter.budget import Budget, BudgetExceeded
 from specter.cache import LLMCache
@@ -64,7 +64,8 @@ class Orchestrator:
         # network calls are made (even local model endpoints are skipped).
         self.providers = {"echo"} if config.offline else available_providers(config)
         self.advisor = ModelAdvisor(self.providers, profile=config.profile,
-                                    catalog=catalog_from_config(config.models))
+                                    catalog=catalog_from_config(config.models),
+                                    overrides=overrides_from_spec(config.model_override))
         self.tools = ToolRegistry(offline=config.offline,
                                   dry_run=not config.allow_exploitation, demo=demo)
         self.audit_dir = audit_dir

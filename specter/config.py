@@ -13,6 +13,12 @@ CONFIG_DIR = Path(os.environ.get("SPECTER_HOME", Path.home() / ".specter"))
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 RUNS_DIR = CONFIG_DIR / "runs"
 
+# Provider -> environment variable Specter auto-detects for zero-config setup.
+KNOWN_PROVIDER_ENV = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+}
+
 
 class ProviderConfig(BaseModel):
     """Credentials and defaults for a single LLM provider."""
@@ -48,6 +54,7 @@ class Config(BaseModel):
     max_usd: float = 0.0         # per-engagement cost cap (0 = unlimited)
     max_tokens: int = 0          # per-engagement token cap (0 = unlimited)
     actor: str = ""              # operator identity recorded on runs/events
+    model_override: str = ""     # force one 'provider:model' for every task (any LLM)
     providers: dict[str, ProviderConfig] = Field(default_factory=dict)
     scope: Scope = Field(default_factory=Scope)
     c2: dict[str, dict[str, Any]] = Field(default_factory=dict)
@@ -56,12 +63,17 @@ class Config(BaseModel):
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Config":
+        # Credentials may live in the shell, a project .env, or next to the config.
         load_dotenv()
+        load_dotenv(CONFIG_DIR / ".env", override=False)
         path = path or CONFIG_FILE
         if path.exists():
             data = yaml.safe_load(path.read_text()) or {}
-            return cls.model_validate(data)
-        return cls()
+            cfg = cls.model_validate(data)
+        else:
+            cfg = cls()
+        cfg.autodetect_providers()
+        return cfg
 
     def save(self, path: Path | None = None) -> Path:
         path = path or CONFIG_FILE
@@ -74,6 +86,42 @@ class Config(BaseModel):
         if not prov or not prov.api_key_env:
             return None
         return os.environ.get(prov.api_key_env)
+
+    def autodetect_providers(self) -> None:
+        """Enable providers whose credentials are present in the environment.
+
+        Purely additive — never overrides a provider already declared in the
+        config file. This makes Specter zero-config: exporting ANTHROPIC_API_KEY,
+        OPENAI_API_KEY, or OLLAMA_HOST is enough to start using it. It does not
+        change engine behaviour, only which providers are available to route to.
+        """
+        for name, env in KNOWN_PROVIDER_ENV.items():
+            if name not in self.providers and os.environ.get(env):
+                self.providers[name] = ProviderConfig(enabled=True, api_key_env=env)
+        host = os.environ.get("OLLAMA_HOST")
+        if host and "ollama" not in self.providers:
+            base = host if host.startswith("http") else f"http://{host}"
+            self.providers["ollama"] = ProviderConfig(
+                enabled=True, base_url=base, default_model="llama3.1:70b")
+        # Any OpenAI-compatible endpoint (Groq, Together, OpenRouter, vLLM,
+        # LM Studio, LiteLLM, …) — the "use any model" path. Pair with
+        # `--model openai-compatible:<model>` or a config `models:` entry.
+        if "openai-compatible" not in self.providers:
+            base_url = (os.environ.get("SPECTER_LLM_BASE_URL")
+                        or os.environ.get("OPENAI_BASE_URL")
+                        or os.environ.get("OPENAI_API_BASE"))
+            if base_url:
+                key_env = ("SPECTER_LLM_API_KEY" if os.environ.get("SPECTER_LLM_API_KEY")
+                           else "OPENAI_API_KEY")
+                self.providers["openai-compatible"] = ProviderConfig(
+                    enabled=True, api_key_env=key_env, base_url=base_url,
+                    default_model=(os.environ.get("SPECTER_LLM_MODEL")
+                                   or os.environ.get("OPENAI_MODEL", "")))
+
+    @staticmethod
+    def detected_env_keys() -> dict[str, str | None]:
+        """Known provider -> the env var value currently set (or None)."""
+        return {name: os.environ.get(env) for name, env in KNOWN_PROVIDER_ENV.items()}
 
     def in_scope(self, target: str) -> bool:
         """Allowlist check used before any active action.

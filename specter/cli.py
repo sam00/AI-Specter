@@ -1,8 +1,10 @@
 """Specter terminal interface — automated AI pentesting from your shell."""
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from pathlib import Path
+from typing import List, Optional
 
 import typer
 from rich.console import Console
@@ -10,10 +12,16 @@ from rich.panel import Panel
 from rich.table import Table
 
 from specter import __version__
-from specter.advisor import ModelAdvisor, TaskKind, catalog_from_config, discover_models
+from specter.advisor import (
+    ModelAdvisor,
+    TaskKind,
+    catalog_from_config,
+    discover_models,
+    overrides_from_spec,
+)
 from specter.audit import AuditLogger
 from specter.c2 import ADAPTERS, get_c2
-from specter.config import CONFIG_FILE, RUNS_DIR, Config, ProviderConfig
+from specter.config import CONFIG_FILE, KNOWN_PROVIDER_ENV, RUNS_DIR, Config, ProviderConfig
 from specter.engine import Orchestrator
 from specter.engine.agent import AgentRunner
 from specter.llm import available_providers, build_client
@@ -33,11 +41,32 @@ BANNER = r"""[bold magenta]
  |___/_| |___\___| |_| |___|_|_\
 [/bold magenta][dim] Security Penetration Engine · Contextual Tactical Exploitation & Reasoning[/dim]"""
 
+PROFILES = ["fast", "balanced", "deep", "frugal", "offline"]
+
+
+@app.callback(invoke_without_command=True)
+def _root(ctx: typer.Context) -> None:
+    """Specter — AI-driven automated pentesting from your terminal."""
+    if ctx.invoked_subcommand is not None:
+        return
+    console.print(BANNER)
+    console.print(Panel.fit(
+        "[bold]Get started in seconds[/bold]\n\n"
+        "  [cyan]specter quickstart[/cyan]    full engagement, offline — no keys or tools needed\n"
+        "  [cyan]specter init[/cyan]          guided setup (providers + scope)\n"
+        "  [cyan]specter doctor[/cyan]        see what's configured and what's missing\n"
+        "  [cyan]specter run -t HOST[/cyan]   scan an authorized target\n\n"
+        "[dim]Tip: export ANTHROPIC_API_KEY or OPENAI_API_KEY and Specter auto-detects it — "
+        "no config needed.[/dim]",
+        title="Specter", style="magenta"))
+
 
 def _narrator(config: Config):
     """Closure that routes report narratives through advisor-selected models."""
     providers = {"echo"} if config.offline else available_providers(config)
-    advisor = ModelAdvisor(providers, profile=config.profile)
+    advisor = ModelAdvisor(providers, profile=config.profile,
+                           catalog=catalog_from_config(config.models),
+                           overrides=overrides_from_spec(config.model_override))
 
     def narrate(task: TaskKind, prompt: str) -> str:
         rec = advisor.recommend(task)
@@ -59,38 +88,77 @@ def version() -> None:
     console.print(f"Specter [bold]{__version__}[/bold]")
 
 
+def _setup_summary(cfg: Config, path: Path) -> None:
+    """Friendly post-setup recap with a clear next step."""
+    ready = sorted(available_providers(cfg))
+    t = Table(title="Setup summary", show_header=False)
+    t.add_column("field", style="bold")
+    t.add_column("value")
+    t.add_row("Profile", cfg.profile)
+    t.add_row("Providers ready", ", ".join(ready))
+    t.add_row("Targets", ", ".join(cfg.scope.targets) or "[dim]none — use `run -t HOST`[/dim]")
+    t.add_row("Config", str(path))
+    console.print(t)
+    if ready == ["echo"]:
+        console.print("[dim]No live LLM yet — export ANTHROPIC_API_KEY/OPENAI_API_KEY or "
+                      "`pip install \"ai-specter[claude]\"`. Specter still runs fully offline.[/dim]")
+    nxt = "specter run" if cfg.scope.targets else "specter run -t scanme.nmap.org"
+    console.print(Panel.fit(
+        f"[green]Ready.[/green]  Next:  [bold]specter doctor[/bold]  ·  "
+        f"[bold]{nxt}[/bold]  ·  [bold]specter quickstart[/bold]", style="green"))
+
+
 @app.command()
 def init() -> None:
-    """Interactive setup wizard: providers, scope, and C2."""
+    """Guided setup: profile, providers (auto-detected), and authorized scope."""
     console.print(BANNER)
     cfg = Config.load()
+    detected = Config.detected_env_keys()
 
-    cfg.profile = typer.prompt(
-        "Engagement profile (fast/balanced/deep/frugal/offline)", default=cfg.profile or "balanced")
+    prof = typer.prompt(f"Engagement profile ({'/'.join(PROFILES)})",
+                        default=cfg.profile or "balanced")
+    if prof not in PROFILES:
+        console.print(f"  [yellow]unknown profile '{prof}', using 'balanced'[/yellow]")
+        prof = "balanced"
+    cfg.profile = prof
 
+    console.print("\n[bold]LLM providers[/bold] [dim](keys in your environment are auto-detected)[/dim]")
     for name, env in (("anthropic", "ANTHROPIC_API_KEY"), ("openai", "OPENAI_API_KEY")):
-        if typer.confirm(f"Enable {name}?", default=name in cfg.providers):
+        seen = bool(detected.get(name))
+        tag = "[green](key detected ✓)[/green]" if seen else f"[dim](reads {env})[/dim]"
+        if typer.confirm(f"  Enable {name}? {tag}", default=seen or name in cfg.providers):
             cfg.providers[name] = ProviderConfig(enabled=True, api_key_env=env)
-            console.print(f"  [dim]→ set {env} in your environment or .env[/dim]")
 
-    if typer.confirm("Enable a local Ollama endpoint?", default="ollama" in cfg.providers):
-        url = typer.prompt("Ollama base URL", default="http://localhost:11434")
+    if typer.confirm("  Enable a local Ollama endpoint?", default="ollama" in cfg.providers):
+        existing = cfg.providers.get("ollama")
+        url = typer.prompt("    Ollama base URL",
+                           default=(existing.base_url if existing else "") or "http://localhost:11434")
         cfg.providers["ollama"] = ProviderConfig(enabled=True, base_url=url,
                                                  default_model="llama3.1:70b")
 
-    targets = typer.prompt("Authorized target(s), comma-separated", default="")
-    if targets:
+    console.print("\n[bold]Authorized scope[/bold] "
+                  "[dim](optional — you can also pass `run -t HOST`)[/dim]")
+    targets = typer.prompt("  Authorized target(s), comma-separated",
+                           default=", ".join(cfg.scope.targets))
+    if targets.strip():
         cfg.scope.targets = [t.strip() for t in targets.split(",") if t.strip()]
-    cfg.scope.authorized_by = typer.prompt("Authorized by", default=cfg.scope.authorized_by or "")
-    cfg.scope.authorization_ref = typer.prompt(
-        "Authorization reference (ticket/contract)", default=cfg.scope.authorization_ref or "")
+    cfg.scope.authorized_by = typer.prompt("  Authorized by",
+                                           default=cfg.scope.authorized_by or "")
+    cfg.scope.authorization_ref = typer.prompt("  Authorization ref (ticket/contract)",
+                                               default=cfg.scope.authorization_ref or "")
 
-    if typer.confirm("Configure a C2 integration?", default=False):
-        c2name = typer.prompt(f"Which C2? ({'/'.join(ADAPTERS)})", default="sliver")
-        cfg.c2[c2name] = {"base_url": typer.prompt("C2 base URL / config path", default="")}
+    if typer.confirm("\nConfigure a C2 integration?", default=bool(cfg.c2)):
+        c2name = typer.prompt(f"  Which C2? ({'/'.join(ADAPTERS)})", default="sliver")
+        cfg.c2[c2name] = {"base_url": typer.prompt("  C2 base URL / config path", default="")}
 
     path = cfg.save()
-    console.print(Panel.fit(f"Config saved to [bold]{path}[/bold]", style="green"))
+    _setup_summary(cfg, path)
+
+
+@app.command()
+def setup() -> None:
+    """Alias for `init` — the guided first-run setup."""
+    init()
 
 
 @app.command()
@@ -101,6 +169,14 @@ def doctor(fix: bool = typer.Option(False, help="Scaffold config + report missin
         cfg.save()
         console.print(f"[green]scaffolded config at {CONFIG_FILE}[/green]")
     provs = available_providers(cfg)
+
+    et = Table(title="Credentials in environment (auto-detected)")
+    for col in ("Provider key", "Env var", "Detected"):
+        et.add_column(col)
+    for name, env in KNOWN_PROVIDER_ENV.items():
+        seen = bool(os.environ.get(env))
+        et.add_row(name, env, "[green]yes ✓[/green]" if seen else "[dim]no[/dim]")
+    console.print(et)
 
     t = Table(title="LLM Providers", show_lines=False)
     for col in ("Provider", "Status"):
@@ -131,6 +207,17 @@ def doctor(fix: bool = typer.Option(False, help="Scaffold config + report missin
         ct.add_row(name, "[green]yes[/green]" if name in cfg.c2 else "[dim]no[/dim]")
     console.print(ct)
 
+    if provs - {"echo"}:
+        console.print(Panel.fit(
+            "[green]✓ Ready — a live AI provider is configured.[/green]  "
+            "Run:  [bold]specter run -t HOST[/bold]", style="green"))
+    else:
+        console.print(Panel.fit(
+            "[yellow]No live LLM provider yet[/yellow] — Specter still runs fully offline.\n"
+            "  • Add a key:    [bold]export ANTHROPIC_API_KEY=sk-...[/bold]  (or OPENAI_API_KEY)\n"
+            "  • Add the SDK:  [bold]pip install \"ai-specter[claude]\"[/bold]  (or \"[openai]\")\n"
+            "  • Try it now:   [bold]specter quickstart[/bold]", style="yellow"))
+
 
 @app.command()
 def advisor(profile: str = typer.Option("", help="Override profile for this view")) -> None:
@@ -147,7 +234,24 @@ def advisor(profile: str = typer.Option("", help="Override profile for this view
     console.print(t)
 
 
-def _persist_and_report(cfg: Config, eng, report: bool) -> None:
+def _emit_export_formats(md_paths: list[Path], fmt: str) -> None:
+    """Convert generated Markdown reports to PDF/Word when requested."""
+    wanted = ["pdf", "docx"] if fmt == "all" else ([fmt] if fmt in ("pdf", "docx") else [])
+    if not wanted:
+        return
+    from specter.reporting.export import ExportUnavailable, export_markdown_file
+    for md in md_paths:
+        for f in wanted:
+            try:
+                out = export_markdown_file(md, f)
+                console.print(f"  [green]{f}[/green] {out}")
+            except ExportUnavailable as e:
+                console.print(f"  [yellow]{f} skipped[/yellow] — {e}")
+            except Exception as e:  # optional export must never break a run
+                console.print(f"  [yellow]{f} export failed[/yellow] — {e}")
+
+
+def _persist_and_report(cfg: Config, eng, report: bool, fmt: str = "md") -> None:
     run_dir = save_run(eng)
     try:
         Store().save_engagement(eng)  # mirror into the shared/team store
@@ -163,15 +267,23 @@ def _persist_and_report(cfg: Config, eng, report: bool) -> None:
         console.print(f"  [green]audit[/green] {eng.log_file} "
                       f"({Path(eng.log_file).stat().st_size} bytes)")
     if report:
-        for p in ReportBuilder(eng, narrate=_narrator(cfg)).build(ReportType.ALL, run_dir):
+        md_paths = ReportBuilder(eng, narrate=_narrator(cfg)).build(ReportType.ALL, run_dir)
+        for p in md_paths:
             console.print(f"  [green]report[/green] {p}")
+        _emit_export_formats(md_paths, fmt)
 
 
 @app.command()
 def run(
     name: str = typer.Option("specter-engagement", help="Engagement name"),
     objectives: str = typer.Option("", help="Free-text objectives"),
+    target: Optional[List[str]] = typer.Option(
+        None, "-t", "--target",
+        help="Authorized target(s); repeatable. Adds to the configured scope for this run."),
     profile: str = typer.Option("", help="Override profile"),
+    model: str = typer.Option(
+        "", "--model",
+        help="Force one 'provider:model' for every task (e.g. openai-compatible:my-model)."),
     offline: bool = typer.Option(False, help="No network calls to tools/providers"),
     demo: bool = typer.Option(False, help="Use bundled demo tool output (offline showcase)"),
     agent: bool = typer.Option(False, help="Use the autonomous agent loop instead of the pipeline"),
@@ -179,6 +291,7 @@ def run(
     actor: str = typer.Option("", help="Operator identity recorded on the run"),
     log_level: str = typer.Option("", help="Audit log level: debug|info|warn|error"),
     report: bool = typer.Option(True, help="Auto-generate all reports after the run"),
+    fmt: str = typer.Option("md", "--format", help="Report format: md|pdf|docx|all"),
 ) -> None:
     """Run an end-to-end engagement against the authorized scope."""
     cfg = Config.load()
@@ -188,9 +301,19 @@ def run(
         cfg.log_level = log_level
     cfg.offline = offline
     cfg.allow_exploitation = allow_exploitation
+    if model:
+        cfg.model_override = model
+    for tgt in (target or []):
+        if tgt and tgt not in cfg.scope.targets:
+            cfg.scope.targets.append(tgt)
 
     if not cfg.scope.targets:
-        console.print("[red]No authorized targets. Run 'specter init' first.[/red]")
+        console.print(Panel.fit(
+            "[red]No authorized targets.[/red]\n"
+            "  • Try it offline:   [bold]specter quickstart[/bold]\n"
+            "  • One-off target:   [bold]specter run -t scanme.nmap.org[/bold]\n"
+            "  • Configure scope:  [bold]specter init[/bold]",
+            title="Nothing in scope", style="red"))
         raise typer.Exit(1)
 
     console.print(BANNER)
@@ -198,7 +321,8 @@ def run(
         f"[bold]{name}[/bold]  ({'agent' if agent else 'pipeline'})\n"
         f"Targets: {', '.join(cfg.scope.targets)}\n"
         f"Profile: {cfg.profile}  •  Exploit: {allow_exploitation}  •  "
-        f"Offline: {offline}  •  Demo: {demo}",
+        f"Offline: {offline}  •  Demo: {demo}"
+        + (f"\nModel: forced → [bold]{model}[/bold]" if model else ""),
         title="Engagement", style="magenta"))
 
     orch = Orchestrator(cfg, reporter=lambda m: console.print(f"[cyan]{m}[/cyan]"),
@@ -207,13 +331,14 @@ def run(
         eng = AgentRunner(orch).run(name=name, objective=objectives, actor=actor)
     else:
         eng = orch.run(name=name, objectives=objectives, actor=actor)
-    _persist_and_report(cfg, eng, report)
+    _persist_and_report(cfg, eng, report, fmt=fmt)
 
 
 @app.command()
 def report(
     run_id: str = typer.Argument("", help="Run ID (defaults to latest)"),
     kind: ReportType = typer.Option(ReportType.ALL, help="risk|technical|remediation|all"),
+    fmt: str = typer.Option("md", "--format", help="Report format: md|pdf|docx|all"),
 ) -> None:
     """Generate reports for a saved engagement."""
     cfg = Config.load()
@@ -226,6 +351,7 @@ def report(
     written = ReportBuilder(eng, narrate=_narrator(cfg)).build(kind, RUNS_DIR / rid)
     for p in written:
         console.print(f"[green]wrote[/green] {p}")
+    _emit_export_formats(written, fmt)
 
 
 @app.command()
@@ -342,7 +468,7 @@ def serve(
     host: str = typer.Option("127.0.0.1", help="Bind host"),
     port: int = typer.Option(8787, help="Bind port"),
 ) -> None:
-    """Start the team collaboration API server (needs specter-ai[server])."""
+    """Start the team collaboration API server (needs ai-specter[server])."""
     from specter.server import serve as _serve
     console.print(f"[cyan]Specter server → http://{host}:{port}[/cyan]")
     _serve(host=host, port=port)
@@ -350,7 +476,7 @@ def serve(
 
 @app.command()
 def mcp() -> None:
-    """Run Specter as an MCP server for Claude/Cursor (needs specter-ai[mcp])."""
+    """Run Specter as an MCP server for Claude/Cursor (needs ai-specter[mcp])."""
     from specter.mcp_server import main as _main
     _main()
 

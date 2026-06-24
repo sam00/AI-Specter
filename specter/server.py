@@ -1,6 +1,6 @@
 """Optional FastAPI server for team collaboration.
 
-Install with ``pip install 'specter-ai[server]'``. Exposes engagements and the
+Install with ``pip install 'ai-specter[server]'``. Exposes engagements and the
 finding workflow over HTTP with API-key auth and simple RBAC
 (viewer < operator < lead). FastAPI/uvicorn are imported lazily so the core
 package stays dependency-light.
@@ -18,7 +18,7 @@ def create_app(config: Config | None = None):
     try:
         from fastapi import Depends, FastAPI, Header, HTTPException
     except ImportError as e:  # pragma: no cover
-        raise RuntimeError("pip install 'specter-ai[server]' to use serve mode") from e
+        raise RuntimeError("pip install 'ai-specter[server]' to use serve mode") from e
 
     config = config or Config.load()
     store = Store()
@@ -76,5 +76,5 @@ def serve(host: str = "127.0.0.1", port: int = 8787, config: Config | None = Non
     try:
         import uvicorn
     except ImportError as e:  # pragma: no cover
-        raise RuntimeError("pip install 'specter-ai[server]' to use serve mode") from e
+        raise RuntimeError("pip install 'ai-specter[server]' to use serve mode") from e
     uvicorn.run(create_app(config), host=host, port=port)

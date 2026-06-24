@@ -1,6 +1,7 @@
 profile: balanced            # fast | balanced | deep | frugal | offline
 offline: false
 allow_exploitation: false    # must be true to run active exploitation / C2 tasking
+# model_override: openai-compatible:my-model  # force ONE model for every task (any LLM)
 log_level: info              # audit verbosity: debug | info | warn | error
 log_compress: true           # gzip the per-run audit log on completion (min storage)
 
@@ -17,6 +18,20 @@ providers:
     enabled: false
     base_url: http://localhost:11434
     default_model: llama3.1:70b
+  # Any OpenAI-compatible endpoint (Groq, Together, OpenRouter, vLLM, LM Studio, …)
+  openai-compatible:
+    enabled: false
+    api_key_env: OPENAI_API_KEY
+    base_url: ""             # e.g. https://api.groq.com/openai/v1
+    default_model: ""        # e.g. llama-3.1-70b-versatile
+
+# Optional: declare custom models so the advisor routes to them automatically.
+# (Otherwise force a model per run with `--model provider:model`.)
+# models:
+#   - provider: openai-compatible
+#     name: llama-3.1-70b-versatile
+#     reasoning: 8
+#     speed: 8
 
 scope:
   targets:

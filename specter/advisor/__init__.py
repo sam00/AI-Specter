@@ -5,6 +5,7 @@ from specter.advisor.model_advisor import (
     TaskKind,
     catalog_from_config,
     discover_models,
+    overrides_from_spec,
 )
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "Recommendation",
     "catalog_from_config",
     "discover_models",
+    "overrides_from_spec",
 ]
