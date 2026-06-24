@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/sam00/AI-Specter/security/advisories/new
+    about: Please report vulnerabilities privately, not as a public issue.
+  - name: Documentation
+    url: https://sam00.github.io/AI-Specter/
+    about: Read the docs (what / why / how).

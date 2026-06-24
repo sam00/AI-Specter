@@ -1,0 +1,45 @@
+profile: balanced            # fast | balanced | deep | frugal | offline
+offline: false
+allow_exploitation: false    # must be true to run active exploitation / C2 tasking
+log_level: info              # audit verbosity: debug | info | warn | error
+log_compress: true           # gzip the per-run audit log on completion (min storage)
+
+providers:
+  anthropic:
+    enabled: true
+    api_key_env: ANTHROPIC_API_KEY
+    default_model: claude-sonnet-4
+  openai:
+    enabled: false
+    api_key_env: OPENAI_API_KEY
+    default_model: gpt-4o
+  ollama:
+    enabled: false
+    base_url: http://localhost:11434
+    default_model: llama3.1:70b
+
+scope:
+  targets:
+    - scanme.nmap.org
+  exclusions: []
+  authorized_by: "Jane Operator"
+  authorization_ref: "ROE-2025-001"
+  rules_of_engagement: "Non-destructive testing only; business hours."
+
+c2:
+  sliver:
+    config_path: ""          # path to operator .cfg
+  cobaltstrike:
+    base_url: ""             # team-server REST bridge
+    token: ""
+  mythic:
+    base_url: ""
+    username: ""
+    password: ""
+  generic:
+    base_url: ""
+    token: ""
+    endpoints:
+      listeners: /api/listeners
+      sessions: /api/sessions
+      task: /api/sessions/{id}/task

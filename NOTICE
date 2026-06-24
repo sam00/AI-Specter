@@ -1,0 +1,24 @@
+Specter AI
+Copyright 2026 Sam Gupta
+
+This product is licensed under the Apache License, Version 2.0 (the "License");
+you may not use this product except in compliance with the License. A copy of
+the License is provided in the LICENSE file, or at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+---
+
+Specter AI integrates with the following third-party, independently-licensed
+open-source security tools and frameworks at runtime (they are NOT bundled or
+redistributed with this project; install them separately under their own
+licenses):
+
+  - Nmap, Nuclei, httpx, ffuf, subfinder, naabu, katana, Nikto, sqlmap,
+    testssl.sh, WPScan, Trivy
+  - C2 frameworks referenced as optional integration targets: Sliver
+    (open source), and the commercial products Cobalt Strike and Mythic.
+    Their names are trademarks of their respective owners and are used here
+    for interoperability/identification only.
+
+No third-party source code is vendored into this repository.

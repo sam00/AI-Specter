@@ -1,0 +1,62 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Test / lint / type caches ---
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+
+# --- Secrets & local config (NEVER commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.yaml
+config.local.yaml
+
+# --- Specter runtime artifacts ---
+# Engagement runs, audit logs, shared store, and generated reports are local-only.
+runs/
+*.db
+*.db-wal
+*.db-shm
+*.jsonl
+*.jsonl.gz
+security-scan/
+.specter/
+
+# --- Editors / OS ---
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

@@ -1,0 +1,19 @@
+services:
+  specter:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: specter:latest
+    container_name: specter
+    ports:
+      - "8787:8787"
+    environment:
+      SPECTER_HOME: /data
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - specter-data:/data
+    restart: unless-stopped
+
+volumes:
+  specter-data:

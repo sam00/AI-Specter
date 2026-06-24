@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an idea or enhancement for Specter AI
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to do, and what's missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How might Specter AI solve this? Commands, flags, behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Confirmation
+      options:
+        - label: This feature respects authorized-use-only / scope-guard principles.
+          required: true
