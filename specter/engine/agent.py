@@ -10,6 +10,7 @@ from __future__ import annotations
 import time
 
 from specter.advisor import TaskKind
+from specter.agents import AgentProfile, get_profile
 from specter.audit import AuditLogger
 from specter.budget import Budget, BudgetExceeded
 from specter.engine import findings as findings_mod
@@ -43,10 +44,12 @@ class AgentRunner:
     def __init__(self, orchestrator) -> None:
         self.orch = orchestrator
 
-    def run(self, name: str, objective: str = "", max_steps: int = 8, actor: str = "") -> Engagement:
+    def run(self, name: str, objective: str = "", max_steps: int = 8, actor: str = "",
+            domain: str = "") -> Engagement:
         orch = self.orch
         cfg = orch.config
         actor = actor or cfg.actor
+        profile: AgentProfile | None = get_profile(domain) if domain else None
         eng = Engagement(name=name, profile=cfg.profile,
                          targets=list(cfg.scope.targets), actor=actor)
         eng.routing = {t: f"{r.provider}:{r.model}" for t, r in orch.advisor.plan().items()}
@@ -56,6 +59,7 @@ class AgentRunner:
         log_path = (orch.audit_dir / eng.id / "specter.jsonl") if orch.audit_dir else None
         orch.audit = AuditLogger(log_path, level=cfg.log_level, compress_on_close=cfg.log_compress)
         orch.audit.event("run", "start", mode="agent", name=name, actor=actor,
+                         domain=profile.name if profile else "general",
                          targets=",".join(eng.targets))
 
         if not eng.targets:
@@ -64,15 +68,25 @@ class AgentRunner:
             orch._finalize(eng)
             return eng
 
-        tools = [t for t in AGENT_TOOLS if t in orch.tools.specs]
-        obj = objective or "find and prioritize exploitable risk"
+        # A domain profile narrows the tool subset and steers the system prompt
+        # with its methodology; otherwise fall back to the broad default loop.
+        system_prompt = AGENT_SYSTEM
+        if profile:
+            preferred = [t for t in profile.tools if t in orch.tools.specs]
+            tools = preferred or [t for t in AGENT_TOOLS if t in orch.tools.specs]
+            system_prompt = AGENT_SYSTEM + profile.system_addendum()
+            obj = objective or profile.default_objective
+            orch.log(f"[agent] specialist profile: {profile.title} ({profile.methodology})")
+        else:
+            tools = [t for t in AGENT_TOOLS if t in orch.tools.specs]
+            obj = objective or "find and prioritize exploitable risk"
         try:
             for step in range(max_steps):
                 orch.budget.check()
                 client, label = orch._client_for(TaskKind.PLANNING)
                 prompt = _decide_prompt(obj, eng.targets, orch.memory.context(1000),
                                         max_steps - step, tools)
-                decision = ph.safe_json(client.complete(AGENT_SYSTEM, prompt, max_tokens=512).text)
+                decision = ph.safe_json(client.complete(system_prompt, prompt, max_tokens=512).text)
                 action = decision.get("action", "finish")
                 tool = decision.get("tool", "")
                 target = decision.get("target") or eng.targets[0]

@@ -43,6 +43,21 @@ def main() -> int:
     rec.save_svg(str(out_svg), title="specter quickstart")
     print(f"wrote {out_svg.relative_to(REPO)} ({out_svg.stat().st_size} bytes)")
 
+    # Second asset: showcase the specialist agents, cloud audit, and MCP suite
+    # so the README reflects the full capability surface — still fully offline.
+    feat = Console(record=True, width=118, file=io.StringIO(), force_terminal=True)
+    cli.console = feat
+    try:
+        cli.agents()
+        cli.cloud(provider="aws", demo=True, report=False)
+        cli.mcp_suite_list()
+    except Exception as e:  # never let the asset build break the demo build
+        feat.print(f"[red]feature capture error: {e}[/red]")
+    feat_svg = ASSETS / "specter-features.svg"
+    feat.save_svg(str(feat_svg), title="specter — agents · cloud · mcp suite")
+    print(f"wrote {feat_svg.relative_to(REPO)} ({feat_svg.stat().st_size} bytes)")
+    cli.console = rec  # restore for any later use
+
     rid = latest_run_id()
     if rid:
         risk = RUNS_DIR / rid / "risk.md"

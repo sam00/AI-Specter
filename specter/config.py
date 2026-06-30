@@ -17,6 +17,8 @@ RUNS_DIR = CONFIG_DIR / "runs"
 KNOWN_PROVIDER_ENV = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
+    "azure-openai": "AZURE_OPENAI_API_KEY",
+    "mistral": "MISTRAL_API_KEY",
 }
 
 
@@ -97,7 +99,32 @@ class Config(BaseModel):
         """
         for name, env in KNOWN_PROVIDER_ENV.items():
             if name not in self.providers and os.environ.get(env):
-                self.providers[name] = ProviderConfig(enabled=True, api_key_env=env)
+                base = ""
+                # Azure needs the resource endpoint alongside its key.
+                if name == "azure-openai":
+                    base = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
+                    if not base:
+                        continue  # key without endpoint isn't usable yet
+                self.providers[name] = ProviderConfig(
+                    enabled=True, api_key_env=env, base_url=base)
+        # Amazon Bedrock: IAM-based, so detect on AWS region presence (no key).
+        if "bedrock" not in self.providers and (
+                os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+                or os.environ.get("AWS_PROFILE")):
+            self.providers["bedrock"] = ProviderConfig(
+                enabled=True,
+                base_url=os.environ.get("AWS_REGION")
+                or os.environ.get("AWS_DEFAULT_REGION", ""),
+                default_model="anthropic.claude-3-5-sonnet-20241022-v2:0")
+        # Self-hosted / local OpenAI-compatible servers, detected by URL env.
+        for name, env, default_model in (
+            ("vllm", "VLLM_BASE_URL", ""),
+            ("lmstudio", "LMSTUDIO_BASE_URL", ""),
+        ):
+            url = os.environ.get(env)
+            if url and name not in self.providers:
+                self.providers[name] = ProviderConfig(
+                    enabled=True, base_url=url, default_model=default_model)
         host = os.environ.get("OLLAMA_HOST")
         if host and "ollama" not in self.providers:
             base = host if host.startswith("http") else f"http://{host}"

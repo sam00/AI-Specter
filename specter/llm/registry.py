@@ -12,6 +12,12 @@ def _sdk_present(module: str) -> bool:
     return importlib.util.find_spec(module) is not None
 
 
+# Providers reachable purely over an OpenAI-compatible / HTTP endpoint. Each
+# entry has a sensible default base URL, so they're usable even if the config
+# leaves base_url blank (the client fills it in).
+_ENDPOINT_PROVIDERS = {"ollama", "openai-compatible", "mistral", "vllm", "lmstudio"}
+
+
 def available_providers(config: Config) -> set[str]:
     """Providers that have both credentials/endpoint and (if needed) an SDK."""
     out: set[str] = {"echo"}  # always available as a fallback
@@ -22,7 +28,15 @@ def available_providers(config: Config) -> set[str]:
             out.add(name)
         elif name == "openai" and config.provider_key(name) and _sdk_present("openai"):
             out.add(name)
-        elif name in ("ollama", "openai-compatible") and prov.base_url:
+        elif name == "azure-openai" and config.provider_key(name) and prov.base_url \
+                and _sdk_present("openai"):
+            out.add(name)
+        elif name == "bedrock" and _sdk_present("boto3"):
+            # IAM auth — no API key, just a usable boto3 install + credentials.
+            out.add(name)
+        elif name == "mistral" and config.provider_key(name) and _sdk_present("openai"):
+            out.add(name)
+        elif name in _ENDPOINT_PROVIDERS:
             out.add(name)
     return out
 

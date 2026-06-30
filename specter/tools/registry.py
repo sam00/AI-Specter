@@ -152,3 +152,20 @@ class ToolRegistry:
             "msfconsole", "msfconsole", "exploit",
             lambda t, x: ["msfconsole", "-q", "-x", x[0] if x else "version; exit"],
             "Metasploit console (gated)"))
+        # Mobile (used by the mobile-application agent profile) ---------------
+        self.register(ToolSpec(
+            "frida", "frida", "mobile",
+            lambda t, x: ["frida", "-U", "-f", t, *x],
+            "Dynamic instrumentation toolkit", active=False))
+        self.register(ToolSpec(
+            "objection", "objection", "mobile",
+            lambda t, x: ["objection", "-g", t, "explore", *x],
+            "Runtime mobile exploration (Frida-based)", active=False))
+        self.register(ToolSpec(
+            "apktool", "apktool", "mobile",
+            lambda t, x: ["apktool", "d", t, *x],
+            "APK decode/disassemble", active=False))
+        self.register(ToolSpec(
+            "mobsf", "mobsf", "mobile",
+            lambda t, x: ["mobsf", *x, t],
+            "Mobile Security Framework static analysis", active=False))

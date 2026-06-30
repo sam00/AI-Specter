@@ -1,0 +1,16 @@
+{
+  "name": "@ai-specter/cli",
+  "version": "0.1.0",
+  "description": "AI-driven automated penetration testing from your terminal (npm launcher for the Python package).",
+  "bin": {
+    "specter": "bin/specter.js"
+  },
+  "scripts": {
+    "postinstall": "node bin/specter.js --__check || true"
+  },
+  "keywords": ["pentest", "security", "ai", "llm", "agent", "offensive-security"],
+  "license": "Apache-2.0",
+  "homepage": "https://sam00.github.io/AI-Specter/",
+  "repository": { "type": "git", "url": "https://github.com/sam00/AI-Specter" },
+  "engines": { "node": ">=16" }
+}

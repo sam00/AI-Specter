@@ -20,6 +20,13 @@ suited for it** — a deep reasoner for exploit chains, a cheap/fast model for
 parsing, a local model for sensitive data. It runs scope‑guarded security
 tools, triages their output with AI, and writes you three reports.
 
+Beyond recon, Specter ships **domain‑specialist agents** (web/API/mobile/cloud/
+internal‑network), **evidence‑gated active web testing** (IDOR, authz, mass
+assignment, injection, SSRF…), **cloud** (CIS) and **mobile** (MASVS) auditing,
+**Relay** for signed remote tool execution, an **MCP server + ecosystem**, a
+**web dashboard** and **TUI** — all behind the same scope guard and audit log.
+See the **[full feature list](docs/FEATURES.md)**.
+
 > ⚠️ **Authorized use only.** Specter enforces a scope allowlist and gates every
 > active/exploitation action behind explicit flags. Only test systems you are
 > contractually authorized to assess.
@@ -49,7 +56,12 @@ tools, triages their output with AI, and writes you three reports.
 
 - **Screenshot.** See the run above — actual offline output rendered to
   [`docs/assets/specter-demo.svg`](docs/assets/specter-demo.svg) (regenerate any
-  time with `python scripts/capture_screenshot.py`).
+  time with `python scripts/capture_screenshot.py`). The specialist agents,
+  cloud audit, and MCP suite render below:
+
+  <p align="center">
+    <img src="docs/assets/specter-features.svg" alt="Specter AI — agents, cloud audit, and MCP suite" width="840">
+  </p>
 
 - **Example output.**
 
@@ -89,11 +101,29 @@ tools, triages their output with AI, and writes you three reports.
   correlated into clusters, and second‑opinion verified**.
 - **🛡️ Prompt‑injection defense** — untrusted tool output is sandboxed before it
   ever reaches a model.
-- **📊 End‑to‑end reporting** — **risk** (exec), **technical** (engineer), and
+- **🎯 Domain‑specialist agents** — web (WSTG), API (OWASP API Top 10), mobile
+  (MASTG/MASVS), cloud (CIS), and internal‑network (ATT&CK) profiles steer the
+  agent's methodology and tools. `specter agents`.
+- **�️ Active web testing** — eight **evidence‑gated** sub‑testers (IDOR/BOLA,
+  authz bypass, mass assignment, injection, broken auth, business logic, SSRF,
+  path traversal) confirmed by a **baseline→attack→control→reproduce** protocol
+  that kills one‑shot false positives. Fed by a HAR import or recording proxy
+  with identity/role discovery. `specter webtest`, `specter proxy`.
+- **☁️ Cloud & 📱 mobile audits** — CIS‑aligned AWS/Azure/GCP posture checks
+  (`specter cloud`) and MASVS mobile checks (`specter mobile`).
+- **🛰️ Relay** — Ed25519‑signed remote tool execution with client allowlisting,
+  anti‑replay, scope guard, and horizontal fan‑out. `specter relay`.
+- **� End‑to‑end reporting** — **risk** (exec), **technical** (engineer), and
   **remediation** reports, exportable to **Markdown, PDF, and Word** (`--format`).
 - **👥 Team mode** — a shared SQLite store with finding workflow
   (`specter findings` / `specter triage`), an optional **API server**
-  (`specter serve`), and an **MCP server** (`specter mcp`) for Claude/Cursor.
+  (`specter serve`), a **web dashboard** (`specter web`), and an interactive
+  **TUI** (`specter tui`).
+- **🔗 MCP server + ecosystem** — run Specter as an MCP server (`specter mcp`)
+  *and* orchestrate external security MCP servers (`specter mcp-suite`).
+- **🔔 Integrations** — Slack notifications (`specter slack`), Cloudflare Tunnel
+  for zero‑open‑port remote access (`specter tunnel`), and localization
+  (`specter lang`, 6 languages).
 - **🎯 C2 integrations** — adapters for **Sliver**, **Cobalt Strike**, **Mythic**,
   and a **generic REST adapter** for any C2.
 - **🔌 Use ANY model** — Claude, GPT, Ollama, or **any OpenAI‑compatible
@@ -136,8 +166,20 @@ specter run -t acme.example --format all    # reports in Markdown + PDF + Word
 specter run -t acme.example --model openai-compatible:llama-3.1-70b  # force any model
 specter report --kind risk --format pdf    # (re)generate a report (md|pdf|docx|all)
 
+specter agents                             # list domain-specialist agents
+specter run --agent --domain web-application -t app.example.com  # specialist run
+specter webtest --har session.har -t app.example.com  # evidence-gated web testing
+specter proxy -t app.example.com           # recording proxy → live session context
+specter cloud --provider aws --demo        # CIS cloud posture audit
+specter mobile --apk app.apk               # MASVS mobile audit
+
 specter findings                           # team view of all findings
 specter triage <id> --status confirmed --assignee you
+specter web                                # server + browser dashboard
+specter tui                                # interactive terminal UI
+
+specter relay keygen                       # Ed25519 identity for remote execution
+specter mcp-suite list                     # external security MCP servers
 ```
 
 No keys yet? Everything above runs end‑to‑end with `--offline` using a built‑in
@@ -153,13 +195,20 @@ Full docs (what / why / how) are published with **GitHub Pages** from
 ```
 specter/
   advisor/     per-task model selection (the brain)
-  llm/         provider-agnostic clients + resilient wrapper (Claude, GPT, Ollama)
+  llm/         provider-agnostic clients (Claude, GPT, Azure, Bedrock, Mistral, Ollama, vLLM…)
   engine/      orchestrator, agent loop, phases, parsers→findings, memory
+  agents/      domain-specialist profiles (web/api/mobile/cloud/internal-network)
+  webtest/     evidence-gated active web testers + recording proxy / HAR capture
+  cloud/       CIS-aligned cloud posture auditor (AWS/Azure/GCP)
+  mobile/      MASVS mobile auditor + APK fact extraction
+  relay/       Ed25519-signed remote tool execution (server + client)
   tools/       scope-guarded security tool wrappers + native output parsers
   c2/          Sliver, Cobalt Strike, Mythic, generic adapters
-  reporting/   risk / technical / remediation builders
+  integrations/ Slack   ·  remote/  Cloudflare Tunnel   ·  i18n/  localization
+  reporting/   risk / technical / remediation builders (md/pdf/docx)
   store.py     shared SQLite store (team workflow)
-  server.py    optional FastAPI server (RBAC)   ·  mcp_server.py  optional MCP
+  server.py    FastAPI server + web dashboard   ·  tui.py  Textual TUI
+  mcp_server.py  MCP server   ·  mcp_catalog.py  external MCP ecosystem
   cli.py       Typer + Rich terminal UI
 ```
 

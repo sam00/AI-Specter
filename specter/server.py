@@ -17,6 +17,7 @@ ROLES = {"viewer": 0, "operator": 1, "lead": 2}
 def create_app(config: Config | None = None):
     try:
         from fastapi import Depends, FastAPI, Header, HTTPException
+        from fastapi.responses import HTMLResponse
     except ImportError as e:  # pragma: no cover
         raise RuntimeError("pip install 'ai-specter[server]' to use serve mode") from e
 
@@ -38,9 +39,30 @@ def create_app(config: Config | None = None):
             return role
         return dep
 
+    @app.get("/", response_class=HTMLResponse)
+    def dashboard() -> str:
+        """Single-page web dashboard (Vulns / Web Context / Agents / MCP / Relay)."""
+        from specter.dashboard import DASHBOARD_HTML
+        return DASHBOARD_HTML
+
     @app.get("/health")
     def health() -> dict:
         return {"status": "ok", "version": __version__, "auth": bool(keys)}
+
+    @app.get("/api/agents")
+    def api_agents() -> list:
+        from specter.agents import AGENT_PROFILES
+        return [{"name": p.name, "title": p.title, "methodology": p.methodology,
+                 "description": p.description, "tools": p.tools}
+                for p in AGENT_PROFILES.values()]
+
+    @app.get("/api/mcp-suite")
+    def api_mcp_suite() -> dict:
+        from specter.mcp_catalog import MCP_CATALOG, total_tools
+        return {"total_tools": total_tools(),
+                "servers": [{"name": s.name, "domain": s.domain, "tools": s.tools,
+                             "description": s.description, "repo": s.repo}
+                            for s in MCP_CATALOG.values()]}
 
     @app.get("/engagements")
     def engagements(_: str = Depends(require("viewer"))) -> list:

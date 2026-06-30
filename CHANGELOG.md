@@ -8,6 +8,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Active web-app testing** (`specter webtest`, `specter proxy`) — eight
+  evidence-gated sub-testers (IDOR/BOLA, AuthZ bypass, mass assignment,
+  injection, broken auth, business logic, SSRF, path traversal) confirmed by a
+  multi-gate **baseline → attack → control → reproduce** protocol that kills
+  one-shot false positives. Fed by a HAR import or a recording HTTP proxy that
+  builds a live session context (identity/role/credential discovery).
+- **Domain-specialist agents** (`specter agents`, `run --agent --domain …`) —
+  web-application (WSTG), api (OWASP API Top 10), mobile (MASTG/MASVS),
+  cloud-security (CIS), and internal-network (ATT&CK/AD) profiles that steer the
+  autonomous loop's methodology and tool subset.
+- **Cloud posture auditing** (`specter cloud`) — CIS-aligned IAM/storage/network/
+  logging checks across AWS/Azure/GCP, offline-simulatable.
+- **Mobile auditing** (`specter mobile`) — MASVS-mapped static checks with
+  best-effort APK fact extraction; Frida/Objection/apktool/MobSF tool wrappers.
+- **Relay** (`specter relay keygen|serve|run`) — Ed25519-signed remote tool
+  execution with client allowlisting, anti-replay, scope guard, and horizontal
+  fan-out across many nodes (optional `ai-specter[relay]`).
+- **More first-class providers** — Amazon Bedrock (IAM), Azure OpenAI, Mistral,
+  vLLM, and LM Studio, all auto-detected from the environment.
+- **Web dashboard** (`specter web`) + **interactive TUI** (`specter tui`),
+  **MCP security suite** catalog (`specter mcp-suite`), **Slack**
+  notifications (`specter slack`), **Cloudflare Tunnel** for zero-open-port
+  remote access (`specter tunnel`), localization (`specter lang`,
+  `SPECTER_LANG`), and multi-channel install (pipx/Homebrew/Scoop/npm/curl).
 - **PDF & Word report export** — `--format md|pdf|docx|all` on `specter run` and
   `specter report` (optional `ai-specter[pdf]` / `[docx]` / `[reports]` extras;
   exports degrade gracefully if a backend is missing).
